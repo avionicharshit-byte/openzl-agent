@@ -1,0 +1,25 @@
+# Binary tick/trade feed (BTCUSDT sample)
+# Layout: 16-byte header, then fixed 41-byte trade records.
+
+Record Header() = {
+  magic:   Bytes(4),
+  version: UInt32LE,
+  count:   Int64LE
+}
+
+header: Header
+expect header.magic == [0x54, 0x49, 0x43, 0x4B]   # "TICK"
+expect header.version == 1
+
+var n = header.count
+
+Record Trade() = {
+  trade_id:  Int64LE,     # monotonically increasing
+  price:     Float64LE,
+  qty:       Float64LE,
+  quote_qty: Float64LE,
+  ts_us:     Int64LE,     # microseconds, near-monotonic
+  flags:     UInt8        # bit0 = isBuyerMaker, bit1 = isBestMatch
+}
+
+trades: Trade[n]

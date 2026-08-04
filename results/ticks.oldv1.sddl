@@ -1,0 +1,15 @@
+# Binary tick/trade feed (BTCUSDT sample), SDDL1 old syntax
+# 16-byte header (magic "TICK", u32 version, i64 count), then 41-byte records.
+
+Trade = {
+  Int64LE      # trade_id (monotonic)
+  Float64LE    # price
+  Float64LE    # qty
+  Float64LE    # quote_qty
+  Int64LE      # ts_us (near-monotonic microseconds)
+  Byte         # flags: bit0 isBuyerMaker, bit1 isBestMatch
+}
+
+: Byte[16]
+num_trades = _rem / sizeof Trade
+: Trade[num_trades]
