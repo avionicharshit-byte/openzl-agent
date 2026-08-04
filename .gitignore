@@ -1,2 +1,4 @@
 data/
-results/*.zlc
+results/*
+!results/benchmarks*.md
+!results/*.sddl
