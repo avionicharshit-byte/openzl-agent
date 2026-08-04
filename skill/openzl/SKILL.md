@@ -148,7 +148,17 @@ the trainer will fit a compromise graph that is good at nothing.
 Use ~3 samples of 5–10 MB drawn from **different regions** of the file, so the trainer sees
 schema drift and value-range drift rather than one contiguous slab.
 
-Text (CSV/JSONL) — split on record boundaries:
+Text (CSV/JSONL) — **verify record boundaries before slicing.** CSV allows newlines inside
+quoted fields; on such files every `head`/`sed`/`tail` line slice cuts mid-record. Nothing
+errors — training just fits corrupted samples and quietly produces a worse compressor. So
+first compare physical lines against parsed records (expect records = lines − 1 header):
+
+```sh
+wc -l < big.csv
+python3 -c 'import csv,sys; csv.field_size_limit(10**9); print(sum(1 for _ in csv.reader(open(sys.argv[1],newline=""))))' big.csv
+```
+
+Only if they agree is line-based slicing safe:
 
 ```sh
 mkdir -p /tmp/samples
@@ -166,9 +176,12 @@ ls -l /tmp/samples/                 # confirm ~8 MB each, not 50
 Derive the row count from a byte budget rather than hard-coding it — row sizes vary wildly
 between datasets, and a fixed line count silently produces 50 MB samples on wide tables.
 
-Sanity-check that the file has no embedded newlines inside quoted fields before trusting a
-line split: compare `wc -l` against the expected row count. If they disagree, use a real CSV
-reader (`python3 -c "import csv..."`) to slice instead.
+If lines ≠ records, do **not** line-slice. Find record boundaries with a quote-aware scan
+(a newline is a boundary only outside quotes — track quote parity) and copy the **original
+bytes** between boundary offsets. Don't re-serialize rows through a CSV writer: it changes
+quoting style, so the trainer fits samples that don't look like the real file. Field-tested:
+a 72 MB municipal CSV with 250k records across 750k physical lines trained to −53.9% vs
+`zstd -3` from byte-offset samples, after line slicing had visibly broken records.
 
 Binary — cut at **exact multiples of the record size**, never arbitrary byte offsets:
 
