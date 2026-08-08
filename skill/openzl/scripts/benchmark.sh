@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# Benchmark an OpenZL-compressed file against zstd -3 / zstd -19 / gzip -9,
-# and verify the OpenZL round-trip byte-for-byte.
+# Benchmark an OpenZL-compressed file against every general-purpose compressor
+# available on the machine, and verify the OpenZL round-trip byte-for-byte.
 #
 # Usage: ./benchmark.sh <original_file> <openzl_compressed_file> [zli_path]
+#
+# Baselines: zstd -3, zstd -19 -T0, gzip -9, xz -9 -T0, brotli -q 11, bzip2 -9,
+# lz4 -12. Missing binaries are skipped with a warning, never a failure.
+#
+# Env:
+#   SKIP_SLOW=1   skip xz/brotli/bzip2 (they run minutes-to-hours on GB inputs)
+#   ZLI=<path>    zli binary (also accepted as the 3rd positional arg)
+#
+# Reporting an OpenZL win against zstd alone is not enough - xz and brotli are
+# the ratio-maximising incumbents a reader will ask about, so the report calls
+# out the single best baseline and OpenZL's margin over it.
 #
 # Exits nonzero if the OpenZL round-trip does not reproduce the original.
 # Baseline artifacts go to a temp dir and are deleted on exit.
@@ -18,6 +29,7 @@ usage() {
 ORIG="$1"
 ZL="$2"
 ZLI="${3:-${ZLI:-zli}}"
+SKIP_SLOW="${SKIP_SLOW:-0}"
 
 [ -f "$ORIG" ] || { echo "error: no such file: $ORIG" >&2; exit 2; }
 [ -f "$ZL" ]   || { echo "error: no such file: $ZL" >&2; exit 2; }
@@ -55,39 +67,85 @@ ROUNDTRIP="FAIL"
 if [ $ZL_DEC_RC -eq 0 ] && cmp -s "$ORIG" "$WORK/rt.out"; then
   ROUNDTRIP="OK"
 fi
+rm -f "$WORK/rt.out"
 
 # ---- Baselines ----
 have() { command -v "$1" >/dev/null 2>&1; }
 
-ZSTD3_SIZE=""; ZSTD3_C_MS=""; ZSTD3_D_MS=""
-ZSTD19_SIZE=""; ZSTD19_C_MS=""; ZSTD19_D_MS=""
-GZIP_SIZE=""; GZIP_C_MS=""; GZIP_D_MS=""
+# label | binary | slug | slow(1 = skipped when SKIP_SLOW=1)
+# Kept as a newline-separated string, not an array, so this stays bash-3.2 safe
+# (macOS ships bash 3.2 - no associative arrays, no mapfile).
+BASELINES="zstd -3|zstd|zst3|0
+zstd -19 -T0|zstd|zst19|0
+gzip -9|gzip|gz|0
+xz -9 -T0|xz|xz|1
+brotli -q 11|brotli|br|1
+bzip2 -9|bzip2|bz2|1
+lz4 -12|lz4|lz4|0"
 
-if have zstd; then
-  echo "  zstd -3 ..." >&2
-  run_timed "$WORK/t3c" -- zstd -3 -q -f -o "$WORK/b.zst3" "$ORIG"
-  ZSTD3_SIZE=$(fsize "$WORK/b.zst3"); ZSTD3_C_MS=$(cat "$WORK/t3c")
-  run_timed "$WORK/t3d" -- zstd -d -q -f -o "$WORK/b3.out" "$WORK/b.zst3"
-  ZSTD3_D_MS=$(cat "$WORK/t3d"); rm -f "$WORK/b3.out"
+compress_cmd() { # label infile outfile
+  case "$1" in
+    "zstd -3")      zstd -3 -q -f -o "$3" "$2" ;;
+    "zstd -19 -T0") zstd -19 -T0 -q -f -o "$3" "$2" ;;
+    "gzip -9")      gzip -9 -c "$2" > "$3" ;;
+    "xz -9 -T0")    xz -9 -T0 -c "$2" > "$3" ;;
+    "brotli -q 11") brotli -q 11 -f -o "$3" "$2" ;;
+    "bzip2 -9")     bzip2 -9 -c "$2" > "$3" ;;
+    "lz4 -12")      lz4 -12 -q -f "$2" "$3" ;;
+    *) return 127 ;;
+  esac
+}
 
-  echo "  zstd -19 -T0 ..." >&2
-  run_timed "$WORK/t19c" -- zstd -19 -T0 -q -f -o "$WORK/b.zst19" "$ORIG"
-  ZSTD19_SIZE=$(fsize "$WORK/b.zst19"); ZSTD19_C_MS=$(cat "$WORK/t19c")
-  run_timed "$WORK/t19d" -- zstd -d -q -f -o "$WORK/b19.out" "$WORK/b.zst19"
-  ZSTD19_D_MS=$(cat "$WORK/t19d"); rm -f "$WORK/b19.out"
-else
-  echo "  warning: zstd not installed, skipping zstd baselines" >&2
-fi
+decompress_cmd() { # label infile outfile
+  case "$1" in
+    zstd*)   zstd -d -q -f -o "$3" "$2" ;;
+    gzip*)   gzip -dc "$2" > "$3" ;;
+    xz*)     xz -dc -T0 "$2" > "$3" ;;
+    brotli*) brotli -d -f -o "$3" "$2" ;;
+    bzip2*)  bzip2 -dc "$2" > "$3" ;;
+    lz4*)    lz4 -d -q -f "$2" "$3" ;;
+    *) return 127 ;;
+  esac
+}
 
-if have gzip; then
-  echo "  gzip -9 ..." >&2
-  run_timed "$WORK/tgc" -- sh -c 'gzip -9 -c "$1" > "$2"' _ "$ORIG" "$WORK/b.gz"
-  GZIP_SIZE=$(fsize "$WORK/b.gz"); GZIP_C_MS=$(cat "$WORK/tgc")
-  run_timed "$WORK/tgd" -- sh -c 'gzip -dc "$1" > "$2"' _ "$WORK/b.gz" "$WORK/bg.out"
-  GZIP_D_MS=$(cat "$WORK/tgd"); rm -f "$WORK/bg.out"
-else
-  echo "  warning: gzip not installed, skipping gzip baseline" >&2
-fi
+ZSTD3_SIZE=""
+
+# Results are stashed in files (bash 3.2 has no associative arrays):
+#   $WORK/res.<slug> = "<size> <compress_ms> <decompress_ms>"
+OLDIFS="$IFS"
+IFS='
+'
+for spec in $BASELINES; do
+  IFS='|' read -r label bin slug slow <<EOF
+$spec
+EOF
+  if ! have "$bin"; then
+    echo "  warning: $bin not installed, skipping $label" >&2
+    continue
+  fi
+  if [ "$slow" = "1" ] && [ "$SKIP_SLOW" = "1" ]; then
+    echo "  skipping $label (SKIP_SLOW=1)" >&2
+    continue
+  fi
+
+  echo "  $label ..." >&2
+  out="$WORK/b.$slug"
+  if ! run_timed "$WORK/tc.$slug" -- compress_cmd "$label" "$ORIG" "$out"; then
+    echo "  warning: $label failed, skipping" >&2
+    rm -f "$out"
+    continue
+  fi
+  bsize=$(fsize "$out")
+  cms=$(cat "$WORK/tc.$slug")
+
+  run_timed "$WORK/td.$slug" -- decompress_cmd "$label" "$out" "$WORK/d.$slug"
+  dms=$(cat "$WORK/td.$slug")
+  rm -f "$WORK/d.$slug" "$out"
+
+  echo "$bsize $cms $dms" > "$WORK/res.$slug"
+  [ "$label" = "zstd -3" ] && ZSTD3_SIZE="$bsize"
+done
+IFS="$OLDIFS"
 
 # ---- Report ----
 pct_of_orig() { python3 -c "print(f'{100*$1/$2:.2f}%')" 2>/dev/null || echo "-"; }
@@ -110,16 +168,41 @@ row() { # name size c_ms d_ms
 }
 
 echo
-echo "### Compression benchmark — $(basename "$ORIG")"
+echo "### Compression benchmark - $(basename "$ORIG")"
 echo
-echo "Original: $(python3 -c "print(f'{$ORIG_SIZE:,}')" 2>/dev/null || echo "$ORIG_SIZE") bytes"
+echo "Original: $(commafy "$ORIG_SIZE") bytes"
 echo
 echo "| Compressor | Size (B) | Ratio | % of orig | vs zstd -3 | Compress | Decompress |"
 echo "|---|---|---|---|---|---|---|"
 row "**OpenZL**" "$ZL_SIZE" "" "$ZL_DEC_MS"
-[ -n "$ZSTD3_SIZE" ]  && row "zstd -3" "$ZSTD3_SIZE" "$ZSTD3_C_MS" "$ZSTD3_D_MS"
-[ -n "$ZSTD19_SIZE" ] && row "zstd -19 -T0" "$ZSTD19_SIZE" "$ZSTD19_C_MS" "$ZSTD19_D_MS"
-[ -n "$GZIP_SIZE" ]   && row "gzip -9" "$GZIP_SIZE" "$GZIP_C_MS" "$GZIP_D_MS"
+
+BEST_LABEL=""; BEST_SIZE=""
+IFS='
+'
+for spec in $BASELINES; do
+  IFS='|' read -r label bin slug slow <<EOF
+$spec
+EOF
+  [ -f "$WORK/res.$slug" ] || continue
+  # IFS is newline for the outer loop - force space splitting for the fields.
+  IFS=' ' read -r bsize cms dms < "$WORK/res.$slug"
+  row "$label" "$bsize" "$cms" "$dms"
+  if [ -z "$BEST_SIZE" ] || [ "$bsize" -lt "$BEST_SIZE" ]; then
+    BEST_SIZE="$bsize"; BEST_LABEL="$label"
+  fi
+done
+IFS="$OLDIFS"
+
+echo
+if [ -n "$BEST_SIZE" ]; then
+  # The honest headline: OpenZL vs the strongest baseline, not vs the weakest.
+  delta=$(python3 -c "print(f'{100.0*($ZL_SIZE - $BEST_SIZE)/$BEST_SIZE:+.2f}%')" 2>/dev/null || echo "-")
+  if [ "$ZL_SIZE" -lt "$BEST_SIZE" ]; then
+    echo "Best baseline: **$BEST_LABEL** ($(commafy "$BEST_SIZE") B). OpenZL is **$delta** vs it - OpenZL wins."
+  else
+    echo "Best baseline: **$BEST_LABEL** ($(commafy "$BEST_SIZE") B). OpenZL is **$delta** vs it - **OpenZL loses on ratio**; compare speed before recommending it."
+  fi
+fi
 echo
 echo "OpenZL round-trip (\`cmp\` vs original): **$ROUNDTRIP**"
 echo
@@ -127,7 +210,7 @@ echo "_OpenZL compress time not measured here (depends on profile/compressor); r
 
 if [ "$ROUNDTRIP" != "OK" ]; then
   echo >&2
-  echo "FATAL: OpenZL round-trip failed — do NOT report these savings." >&2
+  echo "FATAL: OpenZL round-trip failed - do NOT report these savings." >&2
   exit 1
 fi
 exit 0
