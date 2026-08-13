@@ -66,6 +66,9 @@ Global: `--chunk-size`, `-V`.
 ### v0.1 flags that do not exist in v0.2.4
 Global: `--chunk-size-mb`.
 
+### Newer than our pinned build
+`train`: `--format-version` (upstream `dev` after `a9de25e`). See the train section below.
+
 ---
 
 ## Profiles
@@ -195,6 +198,30 @@ zli decompress data.zl  -D t.zd  -o data.out -f
 
 Worth trying when samples are small or highly repetitive. Note it forfeits the
 "decompress with a bare zli" property — mention that trade-off to the user.
+
+### `--format-version` (upstream `dev`, NEWER than our pinned build, not yet verified)
+
+Landed upstream after `a9de25e` in the format-versioning series (#940, #941, #942, #945, #946).
+**Our pinned 0.2.4 binary does not have this flag**, and nothing below has been executed yet:
+
+```sh
+zli train --profile csv samples/ -o t.zlc --format-version 27 -f
+```
+
+- `train` only. Omitted, it defaults to `ZL_MAX_FORMAT_VERSION`, which is **27** on `dev`
+  (minimum supported is 8). Previously the trained compressor carried no explicit version.
+- Two things to check on the next rebuild before recommending it:
+  1. Whether frames written by a max-version compressor are refused by an older `zli`. If so,
+     the "anyone with any recent zli can decompress" line above needs a version floor, and the
+     skill should pass an explicit `--format-version` when the user's decode side is pinned.
+  2. Whether training silently degrades. `FormatVersionUnsupportedError` in
+     `tools/training/train_exceptions.h` says a trainer that cannot meet the target version is
+     **fallen back to zstd by the orchestrator**. That would produce a valid, non-empty `.zlc`
+     that is quietly just zstd. The existing `[ -s trained.zlc ]` check does not catch it;
+     compare the trained ratio against the profile's benchmarked ratio instead.
+
+Dictionary training is also format-aware upstream now (#945), so trained dictionary numbers may
+move from the ones recorded in `results/benchmarks.md`.
 
 ---
 

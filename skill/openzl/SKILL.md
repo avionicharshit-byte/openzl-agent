@@ -242,6 +242,14 @@ when samples are small or repetitive — but the `.zd` bundle is then required a
 time too, forfeiting the "any zli can decompress it" property. Say so rather than enabling it
 silently.
 
+**If the user's `zli` is newer than 0.2.4, check for `zli train --format-version`.** It landed
+upstream after `a9de25e` and defaults to the maximum supported format version. Two consequences
+worth checking before you trust a trained compressor from a newer build: frames may target a
+format version an older decompressor refuses, and a trainer that cannot meet the target version
+is **silently fallen back to zstd**, which yields a valid non-empty `.zlc` that is just zstd.
+Neither is caught by the size check above. Compare the achieved ratio against the benchmark
+table at the end of this file. Details in `references/zli-cheatsheet.md`.
+
 Then compress with the trained compressor:
 
 ```sh
