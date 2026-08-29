@@ -1,12 +1,12 @@
 # openzl-agent
 
 Format-aware compression without the compression expertise. Point Claude Code at your
-data — it identifies the structure, writes the data description, trains an
+data - it identifies the structure, writes the data description, trains an
 [OpenZL](https://openzl.org) compressor, verifies the round-trip byte-for-byte, and
 reports what you'd actually save versus zstd and gzip.
 
 OpenZL (Meta, open-sourced Oct 2025) compresses structured data far better than generic
-compressors by decomposing it into typed streams — *if* someone describes the data's
+compressors by decomposing it into typed streams - *if* someone describes the data's
 structure in its SDDL language or a C++ parser. That description step is the adoption
 barrier. This project makes an LLM do it.
 
@@ -23,12 +23,12 @@ Real datasets, `zli` 0.2.4, every result decompressed and `cmp`-verified byte-id
 | GH Archive JSONL (80 MB) | `serial`, trained | −6.0% | loses |
 
 The second row is the interesting one: a binary format no OpenZL profile covers, with the
-data description written zero-shot by the LLM from a hexdump — and it beats `zstd -19` by
+data description written zero-shot by the LLM from a hexdump - and it beats `zstd -19` by
 a third while compressing 22x faster. The last two rows are why the agent benchmarks
 honestly instead of overselling: checkpoints win on throughput and bytes removed, not
 ratio, and JSON/JSONL is currently weak (OpenZL has no JSON profile).
 
-Decompression needs no trained compressor and no description — the `.zl` frame is
+Decompression needs no trained compressor and no description - the `.zl` frame is
 self-describing, so there's no lock-in.
 
 ## Install the skill
@@ -39,12 +39,12 @@ cp -r openzl-agent/skill/openzl ~/.claude/skills/
 ```
 
 You'll need `zli` built from [facebook/openzl](https://github.com/facebook/openzl)
-(v0.2.4+ recommended) — the skill locates it, or offers to build it for you. Then just
+(v0.2.4+ recommended) - the skill locates it, or offers to build it for you. Then just
 ask Claude Code for compression work, e.g.:
 
 - "Compress this directory of CSVs and show me what it saves."
 - "We store 40 TB/month of these event logs. Is there anything better than zstd?"
-- "Here's a binary file from our trading feed — write an SDDL description for it."
+- "Here's a binary file from our trading feed - write an SDDL description for it."
 
 See [`skill/openzl/README.md`](skill/openzl/README.md) for full docs, including the list
 of execution-verified gotchas the skill knows that the public docs don't (two mutually
@@ -60,10 +60,10 @@ and more).
 
 ## Roadmap
 
-1. **Claude Code skill** — shipped (this repo)
+1. **Claude Code skill** - shipped (this repo)
 2. Standalone CLI (no Claude Code dependency, calls the Claude API directly)
 3. GitHub Action, MCP server
-4. Hosted storage-savings audit — only if users pull for it
+4. Hosted storage-savings audit - only if users pull for it
 
 ## License
 
