@@ -10,6 +10,14 @@ compressors by decomposing it into typed streams - *if* someone describes the da
 structure in its SDDL language or a C++ parser. That description step is the adoption
 barrier. This project makes an LLM do it.
 
+## How it works
+
+![The openzl-agent decision pipeline](docs/pipeline.png)
+
+The branch on the right is the whole product. OpenZL only beats a general compressor
+when something has described the data's structure to it; when nothing can, the agent
+says so and points you at `zstd` or `xz` rather than shipping a worse result.
+
 ## Measured results
 
 Real datasets, `zli` 0.2.4, every result decompressed and `cmp`-verified byte-identical

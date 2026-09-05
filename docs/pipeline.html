@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The openzl-agent decision pipeline</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Flowchart · openzl-agent</p>
+    <h1>The openzl-agent decision pipeline</h1>
+
+    <svg viewBox="0 0 960 660" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="openzl-pipeline-title openzl-pipeline-desc">
+      <title id="openzl-pipeline-title">The openzl-agent decision pipeline</title>
+      <desc id="openzl-pipeline-desc">Flowchart of how openzl-agent handles a dataset: it samples the bytes for exploitable structure and, when there is none, takes an off-ramp recommending zstd or xz instead of OpenZL. When there is structure, it either applies a stock OpenZL profile or has the model write an SDDL data description from a hexdump, then trains the compressor, verifies the round trip byte-for-byte, benchmarks it against seven general compressors, and returns the compressor plus a savings report.</desc>
+
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-soft" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#7a8399"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ============ ARROWS (drawn first, behind nodes) ============ -->
+
+      <!-- Your data -> decision 1 -->
+      <line x1="400" y1="80" x2="400" y2="112" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- decision 1 -> off-ramp (NO) -->
+      <line x1="512" y1="148" x2="628" y2="148" stroke="#7a8399" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow-soft)"/>
+
+      <!-- decision 1 -> decision 2 (YES) -->
+      <line x1="400" y1="184" x2="400" y2="236" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- decision 2 -> stock profile (YES) -->
+      <line x1="288" y1="272" x2="240" y2="272" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- decision 2 -> LLM writes SDDL (NO) — focal path -->
+      <line x1="512" y1="272" x2="644" y2="272" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+      <!-- stock profile -> merge -->
+      <path d="M 148 304 V 344 Q 148 352 156 352 H 392" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- SDDL -> merge -->
+      <path d="M 744 304 V 344 Q 744 352 736 352 H 408" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- merge -> train -->
+      <line x1="400" y1="356" x2="400" y2="376" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- train -> verify -->
+      <line x1="400" y1="428" x2="400" y2="452" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- verify -> output -->
+      <line x1="400" y1="504" x2="400" y2="524" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- ============ ARROW LABELS ============ -->
+
+      <rect x="534" y="128" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="570" y="137" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NO STRUCTURE</text>
+
+      <rect x="408" y="198" width="28" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="422" y="207" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">YES</text>
+
+      <rect x="248" y="252" width="32" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="264" y="261" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">YES</text>
+
+      <rect x="544" y="252" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="578" y="261" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NO PROFILE</text>
+
+      <!-- ============ NODES ============ -->
+
+      <!-- Your data (input terminal) -->
+      <rect x="320" y="40" width="160" height="40" rx="20" fill="#f5f5f5"/>
+      <rect x="320" y="40" width="160" height="40" rx="20" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="400" y="64" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Your data</text>
+
+      <!-- Decision 1 -->
+      <path d="M 400 112 L 512 148 L 400 184 L 288 148 Z" fill="#f5f5f5"/>
+      <path d="M 400 112 L 512 148 L 400 184 L 288 148 Z" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="400" y="146" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Exploitable structure?</text>
+      <text x="400" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sample + hexdump</text>
+
+      <!-- Off-ramp terminal -->
+      <rect x="628" y="124" width="224" height="48" rx="20" fill="#f5f5f5"/>
+      <rect x="628" y="124" width="224" height="48" rx="20" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="740" y="144" fill="#4f5d75" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Use zstd or xz instead</text>
+      <text x="740" y="160" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">openzl would lose here</text>
+
+      <!-- Decision 2 -->
+      <path d="M 400 236 L 512 272 L 400 308 L 288 272 Z" fill="#f5f5f5"/>
+      <path d="M 400 236 L 512 272 L 400 308 L 288 272 Z" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="400" y="276" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Stock profile covers it?</text>
+
+      <!-- Stock profile step -->
+      <rect x="56" y="240" width="184" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="56" y="240" width="184" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="148" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Apply stock profile</text>
+      <text x="148" y="284" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">csv · pytorch · sao</text>
+
+      <!-- SDDL step — FOCAL -->
+      <rect x="644" y="240" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="644" y="240" width="200" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="744" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Model writes the SDDL</text>
+      <text x="744" y="284" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">zero-shot, ascii-only</text>
+
+      <!-- Merge point -->
+      <circle cx="400" cy="352" r="4" fill="#2d3142"/>
+
+      <!-- Train -->
+      <rect x="300" y="376" width="200" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="300" y="376" width="200" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="400" y="398" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Train the compressor</text>
+      <text x="400" y="414" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">zli train --strict</text>
+
+      <!-- Verify + benchmark -->
+      <rect x="288" y="452" width="224" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="288" y="452" width="224" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="400" y="474" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Verify, then benchmark</text>
+      <text x="400" y="490" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">cmp · 7 baselines</text>
+
+      <!-- Output terminal -->
+      <rect x="288" y="524" width="224" height="48" rx="20" fill="#f5f5f5"/>
+      <rect x="288" y="524" width="224" height="48" rx="20" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="400" y="544" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Compressor + savings report</text>
+      <text x="400" y="560" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">.zlc + measured table</text>
+
+      <!-- ============ LEGEND ============ -->
+      <line x1="40" y1="600" x2="920" y2="600" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="620" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+
+      <circle cx="144" cy="616" r="4" fill="#eb6c36"/>
+      <text x="156" y="620" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">AGENT-AUTHORED STEP</text>
+
+      <circle cx="404" cy="616" r="4" fill="#2d3142"/>
+      <text x="416" y="620" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">DETERMINISTIC STEP</text>
+
+      <circle cx="664" cy="616" r="4" fill="#7a8399"/>
+      <text x="676" y="620" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">OFF-RAMP · NOT OPENZL</text>
+    </svg>
+  </div>
+</body>
+</html>
